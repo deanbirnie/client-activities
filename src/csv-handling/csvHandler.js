@@ -1,13 +1,14 @@
-import fs from "fs";
-import dotenv from "dotenv";
-import path from "path";
-
 /* 
 This module handles CSV file processing once new files have been detected in the import
 directory, queueing the files for processing, calling the processing function,
 and ultimately moving them to a directory once they have been successfully
 processed.
 */
+
+import fs from "fs";
+import dotenv from "dotenv";
+import path from "path";
+import { calcDueDate } from "./dueDateCalc.js";
 
 dotenv.config();
 
@@ -26,8 +27,7 @@ export const addToQueue = (filePath) => {
     processingQueue();
 };
 
-/* Appends new files to the fileQueue array, calls the processFile method and
-then calls itself recursively to work through the fileQueue array. 
+/* Appends new files to the fileQueue array, calls the processFile method.
 */
 const processingQueue = async () => {
     if (!processing && fileQueue.length > 0) {
@@ -50,15 +50,64 @@ completed
 const processFile = async (filePath) => {
     console.log(`Processing new file: ${filePath}`);
     try {
-        console.log(`${path.basename(filePath)} processed successfully, moving to processed directory.`);
         try {
-            const newFilePath = path.join(processedDirectory, path.basename(filePath));
-            fs.renameSync(filePath, newFilePath);
-            console.log(`${path.basename(filePath)} moved to ${processedDirectory}`);
-        } catch {
-            console.error(`${path.basename(filePath)} could not be moved to ${processedDirectory}`)
+            const parsedData = await parseCSV(filePath);
+            console.log(parsedData);
+            
+            // Call the dueDateCalculator function to calculate the "DueDate" value
+            // for (const key in parsedData) {
+            //     calcDueDate(parsedData[key]["StartDate"], parsedData[key]["Duration"]);
+            // };
+
+            console.log(`${path.basename(filePath)} processed successfully, moving to processed directory.`);
+            moveToProcessed(filePath);
+        } catch (error) {
+            console.error(`Processing error - ${error}`)
         }
-    } catch (err) {
-        console.error(`There was an error while processing this file. Error: ${err}`)
-    }    
+    } catch (error) {
+        console.error(`There was an error while processing this file. Error: ${error}`)
+    }
+};
+
+// Moves the file to the processed directory
+const moveToProcessed = (filePath) => {
+    try {
+        const newFilePath = path.join(processedDirectory, path.basename(filePath));
+        fs.renameSync(filePath, newFilePath);
+        console.log(`${path.basename(filePath)} moved to ${processedDirectory}`);
+    } catch (error) {
+        console.error(`There was an error moving this file: ${error}`);
+    }
+};
+
+// Parses the CSV file and returns the data as an array for further processing
+const parseCSV = async (filepath) => {
+    const csvDelimiter = process.env.CSV_DELIMITER || ",";
+    const lineSeparator = process.env.LINE_SEPARATOR || "\n";
+    const jsonObject = {};
+
+    const csvFile = fs.readFileSync(filepath);
+
+    const csvArray = csvFile.toString().split(lineSeparator);
+
+    if (csvArray.length === 0) {
+        throw new Error("CSV file is empty");
+    }
+    const headerArray = csvArray[0].split(csvDelimiter);
+    for (let i = 0; i < headerArray.length; i++) {
+        headerArray[i] = headerArray[i].trim().replace(/^'|'$/g, "").trim();
+    }
+
+    // Create an object for each individual activity (row) in the file and store the activity objects in a JSON object
+    for (let j = 1; j < csvArray.length; j++) {
+        let activityObj = {};
+        const row = csvArray[j].split(csvDelimiter);
+        for (let k = 0; k < row.length; k++) {
+            row[k] = row[k].trim().replace(/^'|'$/g, "").trim();
+            activityObj[headerArray[k]] = row[k];
+        }
+        const key = `ImportedActivity${j - 1}`
+        jsonObject[key] = activityObj;
+    }
+    return jsonObject;
 };
