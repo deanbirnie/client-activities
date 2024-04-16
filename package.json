@@ -1,0 +1,23 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "description": "The back-end server for the Client Activities application which will both process and serve the data.",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "nodemon -L index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deanbirnie/client-activities.git"
+  },
+  "author": "Dean Birnie",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/deanbirnie/client-activities/issues"
+  },
+  "homepage": "https://github.com/deanbirnie/client-activities#readme",
+  "dependencies": {
+    "nodemon": "^3.1.0"
+  }
+}
