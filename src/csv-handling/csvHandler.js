@@ -55,9 +55,9 @@ const processFile = async (filePath) => {
             console.log(parsedData);
             
             // Call the dueDateCalculator function to calculate the "DueDate" value
-            // for (const key in parsedData) {
-            //     calcDueDate(parsedData[key]["StartDate"], parsedData[key]["Duration"]);
-            // };
+            for (const key in parsedData) {
+                calcDueDate(parsedData[key]["StartDate"], parsedData[key]["Duration"]);
+            };
 
             console.log(`${path.basename(filePath)} processed successfully, moving to processed directory.`);
             moveToProcessed(filePath);
@@ -106,7 +106,7 @@ const parseCSV = async (filepath) => {
             row[k] = row[k].trim().replace(/^'|'$/g, "").trim();
             activityObj[headerArray[k]] = row[k];
         }
-        const key = `ImportedActivity${j - 1}`
+        const key = j - 1;
         jsonObject[key] = activityObj;
     }
     return jsonObject;

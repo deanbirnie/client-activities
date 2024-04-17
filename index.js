@@ -1,6 +1,5 @@
 import express from 'express';
 import dotenv from 'dotenv';
-import fs from 'fs';
 import path from 'path';
 import chokidar from 'chokidar';
 import { addToQueue } from './src/csv-handling/csvHandler.js';
