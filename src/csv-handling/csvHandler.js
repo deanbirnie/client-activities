@@ -8,7 +8,10 @@ processed.
 import fs from "fs";
 import dotenv from "dotenv";
 import path from "path";
+import mssql from "mssql";
 import { calcDueDate } from "./dueDateCalc.js";
+import { sqlScriptGen } from "../db/sqlScriptGenerator.js";
+import { dbConnect } from "../db/db.js";
 
 dotenv.config();
 
@@ -53,11 +56,23 @@ const processFile = async (filePath) => {
         try {
             const parsedData = await parseCSV(filePath);
             console.log(parsedData);
-            
+
+            await dbConnect();
+
+            const createDatabase = `CREATE DATABASE IF NOT EXISTS ${process.env.MSSQL_DATABASE};\n`;
+            await mssql.query(createDatabase);
+
             // Call the dueDateCalculator function to calculate the "DueDate" value
             for (const key in parsedData) {
-                calcDueDate(parsedData[key]["StartDate"], parsedData[key]["Duration"]);
+                const dueDate = await calcDueDate(parsedData[key]["StartDate"], parsedData[key]["Duration"]);
+                const scriptFile = await sqlScriptGen(parsedData, dueDate);
+                const scriptContent = fs.readFileSync(scriptFile);
+                const executeScript = await mssql.query(scriptContent)
+                console.log("Script executed successfully.");
+                console.log(`${executeScript}`);
             };
+
+            await mssql.close();
 
             console.log(`${path.basename(filePath)} processed successfully, moving to processed directory.`);
             moveToProcessed(filePath);
