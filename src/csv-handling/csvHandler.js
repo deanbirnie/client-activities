@@ -15,7 +15,7 @@ import { dbConnect } from "../db/db.js";
 
 dotenv.config();
 
-const processedDirectory = process.env.PROCESSED_DIRECTORY || "/mnt/c/Users/deani/Desktop/Innosys-Assessment/client-activities-server/processed/";
+const processedDirectory = process.env.PROCESSED_DIRECTORY;
 
 // Array to hold files to be processed
 const fileQueue = [];

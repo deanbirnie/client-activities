@@ -103,7 +103,7 @@ export const sqlScriptGen = async (activitiesJsonObject, calculatedDueDate) => {
 };
 
 const generateActivityInsertionScript = async () => {
-    const newScriptPath = process.env.SQL_SCRIPT_STORAGE_LOCATION || `/mnt/c/Users/deani/Desktop/Innosys-Assessment/client-activities-server/src/db/sql_scripts_executed/`;
+    const newScriptPath = process.env.SQL_SCRIPT_STORAGE_LOCATION;
     const fileName = `${uuid()}.sql`;
     const newScript = path.join(newScriptPath, fileName);
 
