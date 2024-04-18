@@ -58,26 +58,35 @@ const processFile = async (filePath) => {
             console.log(parsedData);
 
             await dbConnect();
+            
+            try {
+                const createDatabase = `CREATE DATABASE ${process.env.MSSQL_DATABASE}`;
+                await mssql.query(createDatabase);
+                console.log(`Database ${process.env.MSSQL_DATABASE} created successfully.`);
+            } catch (error) {
+               console.log("DB already exists, continuing...")
+            }            
 
-            const createDatabase = `CREATE DATABASE IF NOT EXISTS ${process.env.MSSQL_DATABASE};\n`;
-            await mssql.query(createDatabase);
-
-            // Call the dueDateCalculator function to calculate the "DueDate" value
+            const calculatedDueDates = [];
             for (const key in parsedData) {
-                const dueDate = await calcDueDate(parsedData[key]["StartDate"], parsedData[key]["Duration"]);
-                const scriptFile = await sqlScriptGen(parsedData, dueDate);
-                const scriptContent = fs.readFileSync(scriptFile);
-                const executeScript = await mssql.query(scriptContent)
-                console.log("Script executed successfully.");
-                console.log(`${executeScript}`);
+                const dueDate = calcDueDate(parsedData[key]["StartDate"], parsedData[key]["Duration"]);
+                calculatedDueDates.push(dueDate);
             };
+            const scriptFile = await sqlScriptGen(parsedData, calculatedDueDates);
+            console.log("SQL script generated successfully.");
+
+            const scriptContent = await fs.readFileSync(scriptFile);
+            console.log("SQL script read successfully.");
+            const executeScript = await mssql.query(scriptContent)
+            console.log("Script executed successfully.");
+            console.log(`${executeScript}`);
 
             await mssql.close();
 
             console.log(`${path.basename(filePath)} processed successfully, moving to processed directory.`);
             moveToProcessed(filePath);
         } catch (error) {
-            console.error(`Processing error - ${error}`)
+            console.error(`Processing error - ${error.message}`)
         }
     } catch (error) {
         console.error(`There was an error while processing this file. Error: ${error}`)

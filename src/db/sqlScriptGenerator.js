@@ -18,7 +18,7 @@ Parameters:
             @calculatedDueDate: Date (YYYYMMDDTHHmm) - The calculated due date
             for the activity.
 */
-export const sqlScriptGen = async (activitiesJsonObject, calculatedDueDate) => {
+export const sqlScriptGen = async (activitiesJsonObject, calculatedDueDates) => {
     await dbConnect();
     
     const newScript = await generateActivityInsertionScript();
@@ -32,73 +32,75 @@ export const sqlScriptGen = async (activitiesJsonObject, calculatedDueDate) => {
                 const activityClient = singleActivityObject.Client;
                 const activityStartDate = singleActivityObject.StartDate;
                 const activityDuration = singleActivityObject.Duration;
+                const activityDueDate = calculatedDueDates[key];
                 const activityTask1 = singleActivityObject.Task1;
                 const activityTask2 = singleActivityObject.Task2;
                 const activityTask3 = singleActivityObject.Task3;
                 const activityTask4 = singleActivityObject.Task4;
                 const activityTask5 = singleActivityObject.Task5;
                 
-                const checkActivityId = `USE ${process.env.MSSQL_DATABASE};` +
-                    `\nSELECT TOP 1 1 AS Exists FROM Activities WHERE Id = ${activityId};`
-                const activityIdResult = await mssql.query(checkActivityId);
                 
-                if (!activityIdResult || activityIdResult.recordset > 0) {
-                    const insertQuery = `
-                    INSERT INTO [dbo].[Activities] (
-                        [Id],
-                        [Description],
-                        [Client],
-                        [StartDate],
-                        [Duration],
-                        [DueDate],
-                        [Task1],
-                        [Task2],
-                        [Task3],
-                        [Task4],
-                        [Task5]
-                    ) VALUES (
-                        ${activityId},
-                        '${activityDescription}',
-                        '${activityClient}',
-                        '${activityStartDate}',
-                        ${activityDuration},
-                        '${calculatedDueDate}',
-                        '${activityTask1}',
-                        '${activityTask2}',
-                        '${activityTask3}',
-                        '${activityTask4}',
-                        '${activityTask5}'
-                    )`;
-
-                    const checkClientQuery = `SELECT TOP 1 1 AS Exists FROM Clients WHERE Client = '${activityClient}';`;
-                    const clientCheckResult = await mssql.query(checkClientQuery);
-
-                    if (clientCheckResult.recordset.length === 0) {
-                        const insertClientQuery = `INSERT INTO [dbo].[Clients] ([Client]) VALUES ('${activityClient}');`;
-                    }
-
-                    const fileContent = `${insertQuery}\n${insertClientQuery}\n`;
-
-                    fs.appendFile(newScript, fileContent, (err) => {
-                        if (err) {
-                            console.error(`There was an error appending to the file: ${err}`);
-                        } else {
-                            console.log(`Activity ${activityId} successfully added to script.`);
-                        }
-                    });
-
-                    await mssql.close();
-
-                    return newScript;
-                } else {
-                    console.log("Activity already exists in the database.");
-                    await mssql.close();
+                try {
+                    const checkActivityId = `SELECT * FROM Activities WHERE Id = ${activityId};`
+                    await mssql.query(checkActivityId);
+                } catch {
+                    const createActivitiesTable = `CREATE TABLE [dbo].[Activities] (
+                        [Id] INT PRIMARY KEY,
+                        [Description] NVARCHAR(MAX),
+                        [Client] NVARCHAR(100),
+                        [StartDate] NVARCHAR(13),
+                        [Duration] INT,
+                        [DueDate] NVARCHAR(13),
+                        [Task1] NVARCHAR(MAX),
+                        [Task2] NVARCHAR(MAX),
+                        [Task3] NVARCHAR(MAX),
+                        [Task4] NVARCHAR(MAX),
+                        [Task5] NVARCHAR(MAX),
+                        );`;
+                    await mssql.query(createActivitiesTable);
                 }
+                const insertQuery = `\nINSERT INTO [dbo].[Activities] (
+                    [Id],
+                    [Description],
+                    [Client],
+                    [StartDate],
+                    [Duration],
+                    [DueDate],
+                    [Task1],
+                    [Task2],
+                    [Task3],
+                    [Task4],
+                    [Task5]
+                ) VALUES (
+                    ${activityId},
+                    '${activityDescription}',
+                    '${activityClient}',
+                    '${activityStartDate}',
+                    ${activityDuration},
+                    '${activityDueDate}',
+                    '${activityTask1}',
+                    '${activityTask2}',
+                    '${activityTask3}',
+                    '${activityTask4}',
+                    '${activityTask5}'
+                );\n`;
+
+                fs.appendFile(newScript, insertQuery, (err) => {
+                    if (err) {
+                        console.error(`There was an error appending to the file: ${err}`);
+                    } else {
+                        console.log(`Activity ${activityId} successfully added to script.`);
+                    }
+                });
+            } else {
+                console.log("Activity already exists in the database.");
             }
         }
+        console.log(`New script file: ${newScript}`)
+        return newScript;
+
     } catch (error) {
         console.error(`There was an error parsing the JSON object: ${error}`)
-        await mssql.close();
     }
 };
 
@@ -107,50 +109,21 @@ const generateActivityInsertionScript = async () => {
     const fileName = `${uuid()}.sql`;
     const newScript = path.join(newScriptPath, fileName);
 
-    const comment = `-- This script was generated on ${moment().format("DD/MM/YYYY, at HH:mm:ss:SSS")}\n`;
+    const comment = `-- This script was generated on ${moment().format("DD/MM/YYYY, HH:mm:ss:SSS")}\n`;
     const useDatabase = `\nUSE ${process.env.MSSQL_DATABASE};\n`
-    const createTableClients = `\nIF NOT EXISTS (SELECT * FROM` +
-        ` sys.objects WHERE object_id = OBJECT_ID(N'[dbo].` +
-        `[Clients]') AND type in (N'U'))` +
-        `\nBEGIN\n` +
-        `\tCREATE TABLE [dbo].[Clients] (\n` +
-        `\t\t[Id] INT IDENTIY(1,1) PRIMARY KEY,\n` +
-        `\t\t[Client] NVARCHAR(100) NOT NULL,\n` +
-        `\t);\n` +
-        `END;\n`
-    const createTableActivities = `\nIF NOT EXISTS (SELECT *` +
-        ` FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].` +
-        `[activities]') AND type in (N'U'))` +
-        `\nBEGIN\n` +
-        `\tCREATE TABLE [dbo].[Activities] (\n` +
-        `\t\t[Id] INT PRIMARY KEY,\n` +
-        `\t\t[Description] NVARCHAR(MAX),\n` +
-        `\t\t[Client] NVARCHAR(100),\n` +
-        `\t\t[StartDate] DATETIME,\n` +
-        `\t\t[Duration] INT,\n` +
-        `\t\t[DueDate] DATETIME,\n` +
-        `\t\t[Task1] NVARCHAR(MAX),\n` +
-        `\t\t[Task2] NVARCHAR(MAX),\n` +
-        `\t\t[Task3] NVARCHAR(MAX),\n` +
-        `\t\t[Task4] NVARCHAR(MAX),\n` +
-        `\t\t[Task5] NVARCHAR(MAX)\n` +
-        `\t);\n` +
-        `ALTER TABLE [dbo].[activities] ADD CONSTRAINT [FK_activities_clients]` +
-        ` FOREIGN KEY ([client]) REFERENCES [dbo].[clients]([title_name]);` +
-        `END;\n`
 
-        const content = `${comment}${useDatabase}${createTableClients}${createTableActivities}\n`
+    const content = `${comment}${useDatabase}\n`
 
-        await fs.writeFile(newScript, content, {
-            encoding: "utf-8",
-            flag: "w"
-        }, (err) => {
-            if (err) {
-                console.error(`There was an error writing the file: ${err}`);
-            } else {
-                console.log(`File ${newScript} successfully created.`)
-            }
-        })
+    fs.writeFile(newScript, content, {
+        encoding: "utf-8",
+        flag: "w"
+    }, (err) => {
+        if (err) {
+            console.error(`There was an error writing the file: ${err}`);
+        } else {
+            console.log(`File ${newScript} successfully created.`)
+        }
+    })
 
-        return newScript;
+    return newScript;
 };

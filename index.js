@@ -1,10 +1,13 @@
-import express from "express";
+import express, { raw } from "express";
 import dotenv from "dotenv";
 import path from "path";
 import chokidar from "chokidar";
+import mssql from "mssql";
+import { dbConnect } from "./src/db/db.js";
 import multer from "multer";
 import { addToQueue } from "./src/csv-handling/csvHandler.js";
 import cors from "cors";
+import { table } from "console";
 
 dotenv.config();
 
@@ -60,6 +63,33 @@ watcher
 
         return res.status(200).json({ message: "File uploaded successfully." });
     });
+
+    app.get("/api/data", async (req, res) => {
+        try {
+            const numRows = parseInt(req.query.numRows);
+
+            await dbConnect();
+    
+            const query = "SELECT * FROM [dbo].[Activities];";
+    
+            const result = await mssql.query(query);
+            const rawData = result.recordset;
+            await mssql.close();
+    
+            const splitData = [];
+            for (let i = 0; i < rawData.length; i += numRows) {
+                splitData.push(rawData.slice(i, i + numRows));
+            }
+    
+            const jsonDataObject = {}
+            splitData.forEach((tablePage, i) => {
+                jsonDataObject[`${i}`] = tablePage;
+            })
+            return res.status(200).json(jsonDataObject);
+        } catch (error) {
+            return res.status(500).json({ error: error.message });
+        }
+    })
 
     app.get("/api/test", (req, res) => {
         return res.status(200).json({ message: "Server is running." });

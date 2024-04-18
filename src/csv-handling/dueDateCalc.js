@@ -19,6 +19,8 @@ export const calcDueDate = (startDate, duration) => {
     const busEnd = moment().set({ hour: 16, minute: 0 });
     let dueDate = moment(startDate, "YYYYMMDDTHHmm");
 
+    console.log("Calculating due date...");
+
     // const durationCopy = duration;
 
     while (duration > 0) {
